@@ -52,6 +52,8 @@ class MOVEMENT_ZERO_API UZeroCharacterMovementComponent : public UCharacterMovem
 		uint8 Saved_bPrevWantsToCrouch: 1;
 		uint8 Saved_bHadAnimRootMotion:1;
 		uint8 Saved_bTransitionFinished:1;
+
+	
 		
 	public:
 		FSavedMove_Zero();
@@ -79,6 +81,8 @@ class MOVEMENT_ZERO_API UZeroCharacterMovementComponent : public UCharacterMovem
 
 	bool Safe_bWantsToDash;
 	bool Safe_bHadAnimRootMotion;
+
+	
 
 	float DashStartTime;//time the dash starts
 	FTimerHandle TimerHandle_DashCoolDown;
@@ -148,6 +152,7 @@ protected:
 	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
 	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
 	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
+	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 
 	virtual bool DoJump(bool bReplayingMoves, float DeltaTime) override;
 	
@@ -182,8 +187,9 @@ public:
 	
 	//Zipline
 	bool TryZipLine();
-	void StartZipline();
-	void EndZipline();
+	UFUNCTION(Server, Reliable) void Server_EnterZipline(AZero_ZiplineActor* ZiplineToUse);
+	void EnterZipline();
+	void ExitZipline();
 	void PhysZipline(float DeltaTime, int32 Iterations);
 	
 

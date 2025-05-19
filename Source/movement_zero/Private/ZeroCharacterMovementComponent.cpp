@@ -99,6 +99,8 @@ void UZeroCharacterMovementComponent::FSavedMove_Zero::SetMoveFor(ACharacter* C,
 
 	Saved_bHadAnimRootMotion = CharMovementComp->Safe_bHadAnimRootMotion;
 	Saved_bTransitionFinished = CharMovementComp->Safe_bTransitionFinished;
+
+	
 }
 
 //Opposite of setmove
@@ -116,6 +118,8 @@ void UZeroCharacterMovementComponent::FSavedMove_Zero::PrepMoveFor(ACharacter* C
 
 	CharMovementComp->Safe_bHadAnimRootMotion = Saved_bHadAnimRootMotion;
 	CharMovementComp->Safe_bTransitionFinished = Saved_bTransitionFinished;
+
+	
 }
 #pragma endregion
 
@@ -216,7 +220,12 @@ void UZeroCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float D
 		if(TryZipLine())
 		{
 			ZeroCharacter_Owner->StopJumping();
-			StartZipline();
+			//StartZipline();
+			SetMovementMode(MOVE_Custom,CMOVE_Zipline);
+			if(!CharacterOwner->HasAuthority())
+			{
+				Server_EnterZipline(ZiplineActorRef);
+			}
 		}
 	}
 	//Dash
@@ -241,13 +250,14 @@ void UZeroCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float D
 		FHitResult PotenialSurface;
 		if(Velocity.SizeSquared() > pow(SlideMinSpeed,2) && GetSlideSurface(PotenialSurface))
 		{
-			EnterSlide();
+			//EnterSlide();
+			SetMovementMode(MOVE_Custom,CMOVE_Slide);
 			return;
 		}
 	}
 	if(IsCustomMovementMode(CMOVE_Slide) && !bWantsToCrouch)
 	{
-		ExitSlide();
+		SetMovementMode(MOVE_Walking);
 	}
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
 }
@@ -284,6 +294,17 @@ void UZeroCharacterMovementComponent::PhysCustom(float deltaTime, int32 Iteratio
 	default:
 		UE_LOG(LogTemp,Fatal,TEXT("InvalidMovement MOde"));
 	}
+}
+
+void UZeroCharacterMovementComponent::OnMovementModeChanged(EMovementMode PreviousMovementMode,
+	uint8 PreviousCustomMode)
+{
+	Super::OnMovementModeChanged(PreviousMovementMode, PreviousCustomMode);
+	if (PreviousMovementMode == MOVE_Custom && PreviousCustomMode == CMOVE_Slide) ExitSlide();
+	if (PreviousMovementMode == MOVE_Custom && PreviousCustomMode == CMOVE_Zipline) ExitZipline();
+	
+	if (IsCustomMovementMode(CMOVE_Slide)) EnterSlide();
+	if (IsCustomMovementMode(CMOVE_Zipline)) EnterZipline();
 }
 
 bool UZeroCharacterMovementComponent::DoJump(bool bReplayingMoves, float DeltaTime)
@@ -337,7 +358,7 @@ void UZeroCharacterMovementComponent::EnterSlide()
 {
 	bWantsToCrouch = true;
 	Velocity += Velocity.GetSafeNormal2D() * SlideEnterImpulse;
-	SetMovementMode(MOVE_Custom,CMOVE_Slide);
+	
 }
 
 void UZeroCharacterMovementComponent::ExitSlide()
@@ -347,7 +368,6 @@ void UZeroCharacterMovementComponent::ExitSlide()
 	FQuat NewRot = FRotationMatrix::MakeFromXZ(UpdatedComponent->GetForwardVector().GetSafeNormal2D(),FVector::UpVector).ToQuat();
 	FHitResult Hit;
 	SafeMoveUpdatedComponent(FVector::ZeroVector,NewRot,true,Hit);
-	SetMovementMode(MOVE_Walking);
 }
 //takes care of the movement in slide movement mode
 void UZeroCharacterMovementComponent::PhysSlide(float DeltaTime, int32 Iterations)
@@ -364,7 +384,7 @@ void UZeroCharacterMovementComponent::PhysSlide(float DeltaTime, int32 Iteration
 	FHitResult SurfaceHit;
 	if(!GetSlideSurface(SurfaceHit) || Velocity.SizeSquared() < pow(SlideMinSpeed,2))
 	{
-		ExitSlide();
+		SetMovementMode(MOVE_Walking);
 		StartNewPhysics(DeltaTime,Iterations);//starts a new physics in the same frame
 		return;
 	}
@@ -412,7 +432,7 @@ void UZeroCharacterMovementComponent::PhysSlide(float DeltaTime, int32 Iteration
 	FHitResult NewSurfaceHit;
 	if(!GetSlideSurface(NewSurfaceHit)|| Velocity.SizeSquared() < pow(SlideMinSpeed,2))
 	{
-		ExitSlide();
+		SetMovementMode(MOVE_Walking);
 	}
 	//Update ongoing Velocity and Accer
 	if(!bJustTeleported && !HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity())
@@ -632,25 +652,35 @@ bool UZeroCharacterMovementComponent::TryZipLine()
 		if(Cast<AZero_ZiplineActor>(ZipHit.GetActor()))
 		{
 			ZiplineActorRef = Cast<AZero_ZiplineActor>(ZipHit.GetActor());
-			StartZipline();
+			//StartZipline();
+			return true;
 		}
 	}
 	return false;
 }
 
-void UZeroCharacterMovementComponent::StartZipline()
+void UZeroCharacterMovementComponent::Server_EnterZipline_Implementation(AZero_ZiplineActor* ZiplineToUse)
 {
-	Velocity = FVector::ZeroVector;
+	ZiplineActorRef = ZiplineToUse;
 	SetMovementMode(MOVE_Custom,CMOVE_Zipline);
 }
 
-void UZeroCharacterMovementComponent::EndZipline()
+
+
+
+
+void UZeroCharacterMovementComponent::EnterZipline()
+{
+	Velocity = FVector::ZeroVector;
+}
+
+void UZeroCharacterMovementComponent::ExitZipline()
 {
 	FQuat NewRot = FRotationMatrix::MakeFromXZ(UpdatedComponent->GetForwardVector().GetSafeNormal2D(),FVector::UpVector).ToQuat();
 	FHitResult Hit;
 	SafeMoveUpdatedComponent(FVector::ZeroVector,NewRot,true,Hit);
-	SetMovementMode(MOVE_Walking);
 }
+
 
 void UZeroCharacterMovementComponent::PhysZipline(float DeltaTime, int32 Iterations)
 {
@@ -665,7 +695,7 @@ void UZeroCharacterMovementComponent::PhysZipline(float DeltaTime, int32 Iterati
 	//
 	if(Safe_bWantsToDash || bWantsToCrouch || ZeroCharacter_Owner->bPressedZeroJump)
 	{
-		EndZipline();
+		SetMovementMode(MOVE_Falling);
 		StartNewPhysics(DeltaTime,Iterations);//starts a new physics in the same frame
 		return;
 	}
