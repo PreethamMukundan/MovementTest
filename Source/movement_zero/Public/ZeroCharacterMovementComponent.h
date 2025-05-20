@@ -10,6 +10,7 @@
  * 
  */
 
+class USplineComponent;
 class AZero_ZiplineActor;
 class Amovement_zeroCharacter;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDashStartDelegate);
@@ -135,8 +136,13 @@ public:
 	UPROPERTY(EditDefaultsOnly) float ZiplineMinKeyPressTime = 0.5f;
 	UPROPERTY(EditDefaultsOnly) float ZiplineCheckTickIntervel =0.5f;
 	UPROPERTY(EditDefaultsOnly) float ZiplineCheckSphereRadius =110.0f;
+	UPROPERTY(EditDefaultsOnly) float ZiplineCheckMaxDistance = 2000.0f;
+	UPROPERTY(EditDefaultsOnly) float ZiplineSpeed = 500.0f;
 	float ZiplineLastTickTime;
+	bool bZiplineMoveingToEnd;
 	AZero_ZiplineActor* ZiplineActorRef;
+	TObjectPtr<USplineComponent> ZiplineSplineComp;
+	
 	
 	UZeroCharacterMovementComponent();
 
@@ -187,7 +193,7 @@ public:
 	
 	//Zipline
 	bool TryZipLine();
-	UFUNCTION(Server, Reliable) void Server_EnterZipline(AZero_ZiplineActor* ZiplineToUse);
+	UFUNCTION(Server, Reliable) void Server_EnterZipline(USplineComponent* ZiplineToUse , bool InSplineDir);
 	void EnterZipline();
 	void ExitZipline();
 	void PhysZipline(float DeltaTime, int32 Iterations);

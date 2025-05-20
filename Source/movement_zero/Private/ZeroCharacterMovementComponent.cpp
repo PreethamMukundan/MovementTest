@@ -10,6 +10,7 @@
 #include "DrawDebugHelpers.h"
 #include "Zero_ZiplineActor.h"
 #include "Camera/CameraComponent.h"
+#include "Components/SplineComponent.h"
 
 // Helper Macros
 #if 1
@@ -224,7 +225,10 @@ void UZeroCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float D
 			SetMovementMode(MOVE_Custom,CMOVE_Zipline);
 			if(!CharacterOwner->HasAuthority())
 			{
-				Server_EnterZipline(ZiplineActorRef);
+				if(ZiplineActorRef)
+				{
+					Server_EnterZipline(ZiplineActorRef->GetZiplineComponent(),bZiplineMoveingToEnd);
+				}
 			}
 		}
 	}
@@ -495,7 +499,6 @@ void UZeroCharacterMovementComponent::OnRep_DashStart()
 }
 #pragma endregion
 
-
 #pragma region Mantle
 void UZeroCharacterMovementComponent::OnRep_ShortMantle()
 {
@@ -519,7 +522,7 @@ bool UZeroCharacterMovementComponent::TryMantle()
 	float CosMMAA = FMath::Cos(FMath::DegreesToRadians(MantleMaxAlignmentAngle));
 
 
-	ZLOG("Starting Mantle Attempt")
+ZLOG("Starting Mantle Attempt")
 
 	// Check Front Face
 	FHitResult FrontHit;
@@ -538,7 +541,7 @@ bool UZeroCharacterMovementComponent::TryMantle()
 	{
 		return false;
 	}
-	ZPOINT(FrontHit.Location, FColor::Red);
+ZPOINT(FrontHit.Location, FColor::Red);
 
 
 	TArray<FHitResult> HeightHits;
@@ -547,7 +550,7 @@ bool UZeroCharacterMovementComponent::TryMantle()
 	float WallCos = FVector::UpVector | FrontHit.Normal;
 	float WallSin = FMath::Sqrt(1 - WallCos * WallCos);
 	FVector TraceStart = FrontHit.Location + Fwd + WallUp * (MaxHeight - (MaxStepHeight - 1)) / WallSin;
-	ZLINE(TraceStart, FrontHit.Location + Fwd, FColor::Orange)
+ZLINE(TraceStart, FrontHit.Location + Fwd, FColor::Orange)
 		if (!GetWorld()->LineTraceMultiByProfile(HeightHits, TraceStart, FrontHit.Location + Fwd, "BlockAll", Params)) return false;
 	for (const FHitResult& Hit : HeightHits)
 	{
@@ -560,8 +563,8 @@ bool UZeroCharacterMovementComponent::TryMantle()
 	if (!SurfaceHit.IsValidBlockingHit() || (SurfaceHit.Normal | FVector::UpVector) < CosMMSA) return false;
 	float Height = (SurfaceHit.Location - BaseLoc) | FVector::UpVector;
 
-	ZLOG(FString::Printf(TEXT("Height: %f"), Height))
-	ZPOINT(SurfaceHit.Location, FColor::Blue);
+ZLOG(FString::Printf(TEXT("Height: %f"), Height))
+ZPOINT(SurfaceHit.Location, FColor::Blue);
 	
 	if (Height > MaxHeight) return false;
 
@@ -572,17 +575,17 @@ bool UZeroCharacterMovementComponent::TryMantle()
 	FCollisionShape CapShape = FCollisionShape::MakeCapsule(CapR(), CapHH());
 	if (GetWorld()->OverlapAnyTestByProfile(ClearCapLoc, FQuat::Identity, "BlockAll", CapShape, Params))
 	{
-		ZCAPSULE(ClearCapLoc, FColor::Red)
+ZCAPSULE(ClearCapLoc, FColor::Red)
 		return false;
 	}
 	else
 	{
-		ZCAPSULE(ClearCapLoc, FColor::Green)
+ZCAPSULE(ClearCapLoc, FColor::Green)
 	}
-	ZLOG("Can Mantle")
+ZLOG("Can Mantle")
 	
 	FVector TransitionTarget = ClearCapLoc;
-	ZCAPSULE(TransitionTarget, FColor::Yellow)
+ZCAPSULE(TransitionTarget, FColor::Yellow)
 
 	// Perform Transition to Mantle
 ZCAPSULE(UpdatedComponent->GetComponentLocation(), FColor::Red)
@@ -596,7 +599,7 @@ ZCAPSULE(UpdatedComponent->GetComponentLocation(), FColor::Red)
 	TransitionRMS->AccumulateMode = ERootMotionAccumulateMode::Override;
 	
 	TransitionRMS->Duration = FMath::Clamp(TransDistance / 500.f, .1f, .25f);
-	ZLOG(FString::Printf(TEXT("Duration: %f"), TransitionRMS->Duration))
+ZLOG(FString::Printf(TEXT("Duration: %f"), TransitionRMS->Duration))
 	TransitionRMS->StartLocation = UpdatedComponent->GetComponentLocation();
 	TransitionRMS->TargetLocation = TransitionTarget;
 
@@ -608,6 +611,7 @@ ZCAPSULE(UpdatedComponent->GetComponentLocation(), FColor::Red)
 	return true;
 }
 #pragma endregion
+
 #pragma region WallBounce
 bool UZeroCharacterMovementComponent::TryWallBounce()
 {
@@ -619,13 +623,13 @@ bool UZeroCharacterMovementComponent::TryWallBounce()
 	FQuat RotationX = FQuat::Identity;
 	if(GetWorld()->SweepSingleByChannel(WallHit,TraceLocation,TraceLocation,RotationX,ECC_WorldStatic,CapShape,ZeroCharacter_Owner->GetIgnoreCharacterParams()))
 	{
-		ZLOG("Wall Detected");
+ZLOG("Wall Detected");
 		//ZPOINT(WallHit.ImpactPoint,FColor::Blue);
 
 		//Launch Dir
 		
 		FVector WallLaunchDir = WallHit.ImpactNormal.GetSafeNormal() + FVector::UpVector;
-		ZLINE(WallHit.ImpactPoint,WallHit.ImpactPoint+WallLaunchDir,FColor::Green);
+ZLINE(WallHit.ImpactPoint,WallHit.ImpactPoint+WallLaunchDir,FColor::Green);
 		Velocity = WallLaunchDir *  WallBounceImpluse;
 		SetMovementMode(MOVE_Falling);
 		return true;
@@ -642,16 +646,25 @@ bool UZeroCharacterMovementComponent::TryZipLine()
 	
 	FCollisionShape ZipCap = FCollisionShape::MakeSphere(ZiplineCheckSphereRadius);
 	FVector TraceLocation = CamLoc() + CamFV() * ZiplineCheckSphereRadius;
-	FVector TraceEndLocation = CamLoc() + CamFV() * 2000;
+	FVector TraceEndLocation = CamLoc() + CamFV() * ZiplineCheckMaxDistance;
 	FHitResult ZipHit;
 	if(GetWorld()->SweepSingleByObjectType(ZipHit,TraceLocation,TraceEndLocation,CamQuat(),ECC_Vehicle,ZipCap,ZeroCharacter_Owner->GetIgnoreCharacterParams()))
 	{
-		ZPOINT(ZipHit.ImpactPoint,FColor::Magenta);
-		ZLOG("Hit")
-		ZLOG(ZipHit.GetActor()->GetName());
+ZPOINT(ZipHit.ImpactPoint,FColor::Magenta);
+ZLOG("Hit")
+ZLOG(ZipHit.GetActor()->GetName());
 		if(Cast<AZero_ZiplineActor>(ZipHit.GetActor()))
 		{
 			ZiplineActorRef = Cast<AZero_ZiplineActor>(ZipHit.GetActor());
+			ZiplineSplineComp = ZiplineActorRef->GetZiplineComponent();
+			float maxDis = ZiplineSplineComp->GetSplineLength();
+			FVector EndPoint = ZiplineSplineComp->GetLocationAtDistanceAlongSpline(maxDis,ESplineCoordinateSpace::World);
+			float Angle = (CharacterOwner->GetActorForwardVector())| (EndPoint - CharLocation() );
+			bZiplineMoveingToEnd =false;
+			if(Angle> 0)
+			{
+				bZiplineMoveingToEnd = true;
+			}
 			//StartZipline();
 			return true;
 		}
@@ -659,11 +672,14 @@ bool UZeroCharacterMovementComponent::TryZipLine()
 	return false;
 }
 
-void UZeroCharacterMovementComponent::Server_EnterZipline_Implementation(AZero_ZiplineActor* ZiplineToUse)
+void UZeroCharacterMovementComponent::Server_EnterZipline_Implementation(USplineComponent* ZiplineToUse,
+	bool InSplineDir)
 {
-	ZiplineActorRef = ZiplineToUse;
+	ZiplineSplineComp = ZiplineToUse;
+	bZiplineMoveingToEnd = InSplineDir;
 	SetMovementMode(MOVE_Custom,CMOVE_Zipline);
 }
+
 
 
 
@@ -691,7 +707,10 @@ void UZeroCharacterMovementComponent::PhysZipline(float DeltaTime, int32 Iterati
 	}
 
 	RestorePreAdditiveRootMotionVelocity();
-
+	if(!ZiplineSplineComp)
+	{
+		return;
+	}
 	//
 	if(Safe_bWantsToDash || bWantsToCrouch || ZeroCharacter_Owner->bPressedZeroJump)
 	{
@@ -701,10 +720,50 @@ void UZeroCharacterMovementComponent::PhysZipline(float DeltaTime, int32 Iterati
 	}
 
 	//TODO add a way to find if we reached the end of zipline
+
+	//Perform Move
+	Iterations++;
+	bJustTeleported = false;
+	FVector OldLocation = UpdatedComponent->GetComponentLocation();
+	float MaxDis = ZiplineSplineComp->GetSplineLength();
+	float DistancetoPoint = ZiplineSplineComp->GetDistanceAlongSplineAtLocation(CharLocation(),ESplineCoordinateSpace::World);
+	float DistanceToMoveAlongSpline = bZiplineMoveingToEnd? ZiplineSpeed : (ZiplineSpeed * -1);
+	FVector TargetLocation = ZiplineSplineComp->GetLocationAtDistanceAlongSpline(DistancetoPoint + DistanceToMoveAlongSpline,ESplineCoordinateSpace::World);
+	FVector Adjusted = (TargetLocation - CharLocation()).GetSafeNormal() * DeltaTime * ZiplineSpeed;
+	if(MaxDis <= DistancetoPoint || DistancetoPoint <= 0.0f)
+	{
+		SetMovementMode(MOVE_Falling);
+		StartNewPhysics(DeltaTime,Iterations);//starts a new physics in the same frame
+		return;
+	}
+
+	FQuat OldRot = UpdatedComponent->GetComponentRotation().Quaternion();
+	FHitResult Hit(1.f);
+	//FVector Adjusted = Velocity * DeltaTime;
+	//FVector VelPlaneDir = FVector::VectorPlaneProject(Velocity,SurfaceHit.Normal).GetSafeNormal();
+	FVector FVofSplinePoint = ZiplineSplineComp->GetDirectionAtDistanceAlongSpline(DistancetoPoint,ESplineCoordinateSpace::World).GetSafeNormal();
+	FVofSplinePoint.Z =0;
+	if(!bZiplineMoveingToEnd)
+	{
+		FVofSplinePoint *= -1;
+	}
+	FQuat NewRot =FRotationMatrix::MakeFromXZ(FVofSplinePoint,FVector::UpVector).ToQuat();
+	SafeMoveUpdatedComponent(Adjusted,NewRot,true,Hit);
+
+	if(Hit.Time <1.f)
+	{
+		SetMovementMode(MOVE_Falling);
+		StartNewPhysics(DeltaTime,Iterations);//starts a new physics in the same frame
+		return;
+	}
+	//Update ongoing Velocity and Accer
+	if(!bJustTeleported && !HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity())
+	{
+		Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) /DeltaTime;
+	}
 	
 }
 #pragma endregion
-
 
 #pragma region Helper Functions
 bool UZeroCharacterMovementComponent::IsServer() const
@@ -752,12 +811,14 @@ FQuat UZeroCharacterMovementComponent::CamQuat() const
 }
 
 
-#pragma endregion
+
 
 bool UZeroCharacterMovementComponent::IsCustomMovementMode(ECustomMovementMode inCustomMode) const
 {
 	return MovementMode == MOVE_Custom && CustomMovementMode == inCustomMode;
 }
+#pragma endregion
+
 #pragma region Inputs
 void UZeroCharacterMovementComponent::SprintPressed()
 {
@@ -806,6 +867,7 @@ void UZeroCharacterMovementComponent::GetLifetimeReplicatedProps(
 	DOREPLIFETIME_CONDITION(UZeroCharacterMovementComponent,Proxy_bDashStart,COND_SkipOwner);
 }
 #pragma endregion
+
 class FNetworkPredictionData_Client* UZeroCharacterMovementComponent::GetPredictionData_Client() const
 {
 	check(PawnOwner != nullptr)
