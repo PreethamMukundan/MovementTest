@@ -309,6 +309,11 @@ void UZeroCharacterMovementComponent::OnMovementModeChanged(EMovementMode Previo
 	
 	if (IsCustomMovementMode(CMOVE_Slide)) EnterSlide();
 	if (IsCustomMovementMode(CMOVE_Zipline)) EnterZipline();
+
+	if(D_ChangeInCustomMovementMode.IsBound())
+	{
+		D_ChangeInCustomMovementMode.Broadcast();
+	}
 }
 
 bool UZeroCharacterMovementComponent::DoJump(bool bReplayingMoves, float DeltaTime)
@@ -641,6 +646,7 @@ ZLINE(WallHit.ImpactPoint,WallHit.ImpactPoint+WallLaunchDir,FColor::Green);
 #pragma region Zipline
 bool UZeroCharacterMovementComponent::TryZipLine()
 {
+	if(IsCustomMovementMode(CMOVE_Zipline)) return false;
 	if(GetWorld()->TimeSeconds - ZiplineLastTickTime < ZiplineCheckTickIntervel ) return false;
 	ZiplineLastTickTime = GetWorld()->TimeSeconds;
 	

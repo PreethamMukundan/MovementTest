@@ -77,7 +77,7 @@ bool Amovement_zeroCharacter::CanJumpInternal_Implementation() const
 	
 	if(ZeroCharacterMovementComponent->IsCustomMovementMode(CMOVE_Zipline))
 	{
-		return false;
+		return true;
 	}
 	if(ZeroCharacterMovementComponent->IsCustomMovementMode(CMOVE_Slide))
 	{

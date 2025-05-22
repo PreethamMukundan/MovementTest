@@ -14,6 +14,7 @@ class USplineComponent;
 class AZero_ZiplineActor;
 class Amovement_zeroCharacter;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDashStartDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FChangeInMovementModeDelegate);
 
 
 UENUM(BlueprintType)
@@ -89,6 +90,7 @@ class MOVEMENT_ZERO_API UZeroCharacterMovementComponent : public UCharacterMovem
 	FTimerHandle TimerHandle_DashCoolDown;
 
 
+	UPROPERTY(BlueprintAssignable) FChangeInMovementModeDelegate D_ChangeInCustomMovementMode;
 	
 
 	//replicated
